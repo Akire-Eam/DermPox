@@ -294,20 +294,20 @@ if uploaded_file:
             #         """, unsafe_allow_html=True)
 
             with st.expander("View other possibilities"):
-            st.markdown(f"""
-            <div class="secondary-card">
-            """, unsafe_allow_html=True)
-            for label, confidence in results[1:]:
                 st.markdown(f"""
-                <div class="secondary-item">
-                    <div class="secondary-label">{label}</div>
-                    <div class="confidence-bar-container">
-                        <div class="confidence-bar-fill" style="width: {confidence*100:.1f}%"></div>
-                    </div>
-                    <div style="text-align: right; color: #4fc3f7;">{confidence*100:.1f}%</div>
-                </div>
+                <div class="secondary-card">
                 """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+                for label, confidence in results[1:]:
+                    st.markdown(f"""
+                    <div class="secondary-item">
+                        <div class="secondary-label">{label}</div>
+                        <div class="confidence-bar-container">
+                            <div class="confidence-bar-fill" style="width: {confidence*100:.1f}%"></div>
+                        </div>
+                        <div style="text-align: right; color: #4fc3f7;">{confidence*100:.1f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
             
             # Explainable AI Section
             st.markdown("""
