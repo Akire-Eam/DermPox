@@ -69,6 +69,43 @@ st.markdown(f"""
         color: #e0e0e0;
         font-size: 0.9rem;
     }}
+
+    .prediction-card {{
+        background-color: var(--card-bg);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }}
+    .prediction-name {{
+        font-size: 1.5rem;
+        color: #4fc3f7;
+        font-weight: bold;
+        margin-bottom: 0.3rem;
+    }}
+    .confidence-bar-container {{
+        width: 100%;
+        background-color: #333;
+        border-radius: 6px;
+        height: 12px;
+        overflow: hidden;
+        margin: 0.5rem 0;
+    }}
+    .confidence-bar-fill {{
+        height: 100%;
+        background: linear-gradient(90deg, #4fc3f7, #2b5876);
+    }}
+    .secondary-card {{
+        background-color: var(--card-bg);
+        padding: 1.5rem;
+        border-radius: 12px;
+    }}
+    .secondary-item {{
+        margin-bottom: 1rem;
+    }}
+    .secondary-label {{
+        color: #e0e0e0;
+        font-weight: 500;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,15 +249,30 @@ if uploaded_file:
             st.markdown("## Analysis Results")
             
             # Top prediction
+            # top_pred = results[0]
+            # st.markdown(f"""
+            # <div class="prediction-card">
+            #     <div class="prediction-name">{top_pred[0]}</div>
+            #     <div>Most likely diagnosis</div>
+            #     <div class="confidence-meter">
+            #         <div class="confidence-fill" style="width: {top_pred[1]*100:.1f}%"></div>
+            #     </div>
+            #     <div style="text-align: right; font-weight: 500; color: #4fc3f7">
+            #         {top_pred[1]*100:.1f}% confidence
+            #     </div>
+            # </div>
+            # """, unsafe_allow_html=True)
+
             top_pred = results[0]
             st.markdown(f"""
             <div class="prediction-card">
+                <div style="font-size: 0.9rem; color: #cfd8dc; margin-bottom: 0.5rem;">PRIMARY DIAGNOSIS</div>
                 <div class="prediction-name">{top_pred[0]}</div>
-                <div>Most likely diagnosis</div>
-                <div class="confidence-meter">
-                    <div class="confidence-fill" style="width: {top_pred[1]*100:.1f}%"></div>
+                <div style="font-size: 0.85rem; color: #cfd8dc;">Most probable condition</div>
+                <div class="confidence-bar-container">
+                    <div class="confidence-bar-fill" style="width: {top_pred[1]*100:.1f}%"></div>
                 </div>
-                <div style="text-align: right; font-weight: 500; color: #4fc3f7">
+                <div style="text-align: right; color: #4fc3f7; font-weight: 500;">
                     {top_pred[1]*100:.1f}% confidence
                 </div>
             </div>
@@ -228,18 +280,34 @@ if uploaded_file:
 
             # Alternative diagnoses
             # Corrected alternative diagnoses section
+            # with st.expander("View other possibilities"):
+            #     for i in range(1, len(results)):  # Start from 1 to skip top prediction
+            #         pred_label, pred_conf = results[i]
+            #         st.markdown(f"""
+            #         <div style="margin: 0.5rem 0; padding: 1rem; background: #333; border-radius: 8px;">
+            #             <div style="font-weight: 500;">{pred_label}</div>
+            #             <div class="confidence-meter">
+            #                 <div class="confidence-fill" style="width: {pred_conf*100:.1f}%"></div>
+            #             </div>
+            #             <div style="text-align: right;">{pred_conf*100:.1f}%</div>
+            #         </div>
+            #         """, unsafe_allow_html=True)
+
             with st.expander("View other possibilities"):
-                for i in range(1, len(results)):  # Start from 1 to skip top prediction
-                    pred_label, pred_conf = results[i]
-                    st.markdown(f"""
-                    <div style="margin: 0.5rem 0; padding: 1rem; background: #333; border-radius: 8px;">
-                        <div style="font-weight: 500;">{pred_label}</div>
-                        <div class="confidence-meter">
-                            <div class="confidence-fill" style="width: {pred_conf*100:.1f}%"></div>
-                        </div>
-                        <div style="text-align: right;">{pred_conf*100:.1f}%</div>
+            st.markdown(f"""
+            <div class="secondary-card">
+            """, unsafe_allow_html=True)
+            for label, confidence in results[1:]:
+                st.markdown(f"""
+                <div class="secondary-item">
+                    <div class="secondary-label">{label}</div>
+                    <div class="confidence-bar-container">
+                        <div class="confidence-bar-fill" style="width: {confidence*100:.1f}%"></div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div style="text-align: right; color: #4fc3f7;">{confidence*100:.1f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
             
             # Explainable AI Section
             st.markdown("""
