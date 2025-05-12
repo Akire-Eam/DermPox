@@ -118,18 +118,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Load model with Grad-CAM support
+# @st.cache_resource
+# def load_model():
+#     model = tf.keras.models.load_model('final_deployment_model.keras')
+    
+#     # Create model for Grad-CAM
+#     last_conv_layer = next(layer for layer in model.layers[::-1] 
+#                       if isinstance(layer, tf.keras.layers.Conv2D))
+#     grad_model = tf.keras.models.Model(
+#         [model.inputs], 
+#         [last_conv_layer.output, model.output]
+#     )
+#     return model, grad_model
+
+
 @st.cache_resource
 def load_model():
-    model = tf.keras.models.load_model('best_model.keras')
-    
-    # Create model for Grad-CAM
-    last_conv_layer = next(layer for layer in model.layers[::-1] 
-                      if isinstance(layer, tf.keras.layers.Conv2D))
+    model = tf.keras.models.load_model('final_deployment_model.keras')
+
+    # Find the specific conv layer by name
+    last_conv_layer = model.get_layer("convnext_base_stage_3_block_2_pointwise_conv_2")
+
+    # Create model for Grad-CAM using that layer's output and model prediction output
     grad_model = tf.keras.models.Model(
-        [model.inputs], 
+        [model.inputs],
         [last_conv_layer.output, model.output]
     )
     return model, grad_model
+
 
 model, grad_model = load_model()
 
@@ -159,22 +175,47 @@ def preprocess_image(image):
     return img
 
 # Grad-CAM implementation (modified for uint8)
-def make_gradcam_heatmap(img_array, grad_model):
-    # Convert to float32 temporarily for calculations
-    img_tensor = tf.convert_to_tensor(img_array.astype('float32'))
+def make_gradcam_heatmap(img_array, grad_model, pred_index=None):
+    """
+    Generate Grad-CAM heatmap for an image and a model.
+    
+    Args:
+        img_array (np.ndarray): Preprocessed image tensor of shape (1, height, width, 3)
+        grad_model (tf.keras.Model): Model with output of last conv layer + predictions
+        pred_index (int): Index of class to visualize. If None, uses top predicted class.
+        
+    Returns:
+        heatmap (np.ndarray): 2D heatmap (0-1 values)
+    """
+    img_tensor = tf.convert_to_tensor(img_array)
+    
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_tensor)
-        pred_index = tf.argmax(predictions[0])
-        loss = predictions[:, pred_index]
-    
-    grads = tape.gradient(loss, conv_outputs)
+        if pred_index is None:
+            pred_index = tf.argmax(predictions[0])
+        class_channel = predictions[:, pred_index]
+
+    # Compute gradients of the target class w.r.t conv_outputs
+    grads = tape.gradient(class_channel, conv_outputs)
+    # Global average pooling of gradients over height and width (keep channels)
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-    
+
+    # Multiply each conv feature map by its corresponding importance weight
     conv_outputs = conv_outputs[0]
     heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
-    heatmap = tf.maximum(heatmap, 0)  # ReLU
-    heatmap /= tf.math.reduce_max(heatmap) + 1e-8  # Normalize 0-1
+    heatmap = tf.squeeze(heatmap)
+
+    # Apply ReLU (keep only positive activations)
+    heatmap = tf.maximum(heatmap, 0)
+
+    # Normalize heatmap to 0-1
+    max_val = tf.reduce_max(heatmap)
+    if max_val == 0:
+        return np.zeros_like(heatmap.numpy())
+    heatmap /= max_val
+
     return heatmap.numpy()
+
 
 
 # LIME explanation (works with uint8)
@@ -190,17 +231,17 @@ def make_gradcam_heatmap(img_array, grad_model):
 #     )
 #     return explanation
 
-def lime_explanation(img_array, model, top_labels=5):
-    explainer = lime_image.LimeImageExplainer()
-    explanation = explainer.explain_instance(
-        image=img_array.astype('uint8'),
-        classifier_fn=lambda x: model.predict(x.astype(np.float32)),  # Ensure float32 input for ConvNeXt
-        top_labels=top_labels,
-        hide_color=0,
-        num_samples=700,  # reduced from 700
-        batch_size=16
-    )
-    return explanation
+# def lime_explanation(img_array, model, top_labels=5):
+#     explainer = lime_image.LimeImageExplainer()
+#     explanation = explainer.explain_instance(
+#         image=img_array.astype('uint8'),
+#         classifier_fn=lambda x: model.predict(x.astype(np.float32)),  # Ensure float32 input for ConvNeXt
+#         top_labels=top_labels,
+#         hide_color=0,
+#         num_samples=700,  # reduced from 700
+#         batch_size=16
+#     )
+#     return explanation
 
 
 # Main app
@@ -234,7 +275,7 @@ if uploaded_file:
                 
                 # Generate explanations
                 heatmap = make_gradcam_heatmap(img_tensor, grad_model)
-                explanation = lime_explanation(img_array, model)
+                # explanation = lime_explanation(img_array, model)
             
             st.markdown("""
             <div class="disclaimer-box">
@@ -321,42 +362,49 @@ if uploaded_file:
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**Grad-CAM Heatmap**")
-                # heatmap = cv2.resize(heatmap, (img_array.shape[1], img_array.shape[0]))
-                # heatmap = np.uint8(255 * heatmap)
-                # heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-                # superimposed_img = cv2.addWeighted(img_array, 0.6, heatmap, 0.4, 0)
-                heatmap = cv2.resize(heatmap, (img_array.shape[1], img_array.shape[0]))
-                heatmap = np.uint8(255 * heatmap)
-                heatmap_color = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-                
-                # Make sure img_array is [0,1] float
-                if img_array.max() > 1.0:
-                    img_array = img_array / 255.0
-                img_array = np.uint8(255 * img_array)
 
-                # superimposed_img = cv2.addWeighted(img_array, 0.5, heatmap_color, 0.5, 0)
-                superimposed_img = cv2.addWeighted(
-                                    cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB),
-                                    0.6,
-                                    cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB),
-                                    0.4,
-                                    0
-                                )
-                st.image(superimposed_img, use_container_width=True)
+                # Resize heatmap to match original image size
+                heatmap_resized = cv2.resize(heatmap, (img_array.shape[1], img_array.shape[0]))
+
+                # Rescale heatmap to 0-255
+                heatmap_rescaled = np.uint8(255 * heatmap_resized)
+
+                # Apply JET colormap
+                heatmap_color = cv2.applyColorMap(heatmap_rescaled, cv2.COLORMAP_JET)
+
+                # Prepare original image (ensure 0-255 uint8 RGB)
+                if img_array.max() <= 1.0:
+                    display_img = (img_array * 255).astype(np.uint8)
+                else:
+                    display_img = img_array.astype(np.uint8)
+
+                # Convert RGB to BGR for OpenCV blending
+                display_img_bgr = cv2.cvtColor(display_img, cv2.COLOR_RGB2BGR)
+
+                # Blend heatmap with original image
+                superimposed_img = cv2.addWeighted(display_img_bgr, 0.6, heatmap_color, 0.4, 0)
+
+                # Convert back to RGB for Streamlit display
+                superimposed_img_rgb = cv2.cvtColor(superimposed_img, cv2.COLOR_BGR2RGB)
+
+                # Display result
+                st.image(superimposed_img_rgb, use_container_width=True)
+
+
             
             # LIME Visualization
-            with col2:
-                st.markdown("**LIME Explanation**")
-                temp, mask = explanation.get_image_and_mask(
-                    explanation.top_labels[0],
-                    positive_only=True,
-                    num_features=5,
-                    hide_rest=False
-                )
-                fig, ax = plt.subplots(figsize=(6,6))
-                ax.imshow(mask)
-                ax.axis('off')
-                st.pyplot(fig, use_container_width=True)
+            # with col2:
+            #     st.markdown("**LIME Explanation**")
+            #     temp, mask = explanation.get_image_and_mask(
+            #         explanation.top_labels[0],
+            #         positive_only=True,
+            #         num_features=5,
+            #         hide_rest=False
+            #     )
+            #     fig, ax = plt.subplots(figsize=(6,6))
+            #     ax.imshow(mask)
+            #     ax.axis('off')
+            #     st.pyplot(fig, use_container_width=True)
             
             # Medical disclaimer
             st.markdown("""
