@@ -240,7 +240,7 @@ def lime_explanation(img_array, model, top_labels=5):
         classifier_fn=lambda x: model.predict(x.astype(np.float32)),  # Ensure float32 input for ConvNeXt
         top_labels=top_labels,
         hide_color=0,
-        num_samples=1000,
+        num_samples=700,
         batch_size=16
     )
     return explanation
