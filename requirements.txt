@@ -3,4 +3,5 @@ tensorflow==2.19.0
 opencv-python==4.11.0.86
 lime==0.2.0.1
 numpy>=1.26.0 
-protobuf<4     
+protobuf<4   
+streamlit-cropper==0.2.2
